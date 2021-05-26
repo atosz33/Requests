@@ -186,6 +186,108 @@ class Requests_Transport_cURL implements Requests_Transport {
 		return $this->headers;
 	}
 
+    public function request_pool($requests, $options, $pool_size = 2)
+    {
+        if (empty($requests)) {
+            return array();
+        }
+
+        $pool = array();
+        $queue = array();
+        $responses = array();
+
+        $main_curl_executor_pool = curl_multi_init();
+
+        foreach ($requests as $id => $request)
+        {
+            $queue[] = array(
+                'id' => $id,
+                'request' => $request
+            );
+        }
+
+        $request['options']['hooks']->dispatch('curl.before_multi_exec', array(&$multihandle));
+
+        while (!empty($pool) && !empty($queue))
+        {
+            $done = curl_multi_info_read($main_curl_executor_pool);
+
+            if ($done !== false)
+            {
+                $pool_key = spl_object_hash($done['handle']);
+                $pool_element = $pool[$pool_key];
+                unset($pool[$pool_key]);
+
+                $response[$pool_element['id']] = $this->handleCurlResponse($done, $pool_element);
+                curl_multi_remove_handle($main_curl_executor_pool, $done['handle']);
+                curl_close($done['handle']);
+            }
+
+            if (count($pool) >= $pool_size || empty($queue))
+            {
+                sleep(0.5);
+
+                continue;
+            }
+
+            list($id, $request) = array_shift($queue);
+            $subhandle = $this->addNewSubrequestHandle($id, $request);
+
+            $pool[spl_object_hash($subhandle)] = array(
+                'id' => $id,
+                'request' => $request,
+                'subhandle' => $subhandle,
+            );
+
+            curl_multi_add_handle($main_curl_executor_pool, $subhandle['id']);
+        }
+
+        $request['options']['hooks']->dispatch('curl.after_multi_exec', array(&$multihandle));
+        curl_multi_close($main_curl_executor_pool);
+
+        return $responses;
+    }
+
+    private function addNewSubrequestHandle($id, $request)
+    {
+        $class = get_class($this);
+        $subrequest = new $class();
+        $subhandle  = $subrequest->get_subrequest_handle(
+            $request['url'],
+            $request['headers'],
+            $request['data'],
+            $request['options']
+        );
+        $request['options']['hooks']->dispatch('curl.before_multi_add', array(&$subhandle));
+
+        return $subhandle;
+    }
+
+    private function handleCurlResponse(array $done, $pool_element)
+    {
+
+        if ($done['result'] === CURLE_OK)
+        {
+            $parsed_response = $pool_element->process_response($pool_element->response_data, $options);
+            options['hooks']->dispatch('transport.internal.parse_response', array(&$responses[$key], $requests[$key]));
+
+            return $parsed_response;
+        }
+
+        $reason          = curl_error($done['handle']);
+        $exception       = new Requests_Exception_Transport_cURL(
+            $reason,
+            Requests_Exception_Transport_cURL::EASY,
+            $done['handle'],
+            $done['result']
+        );
+
+		$options['hooks']->dispatch('transport.internal.parse_error', array(&$responses[$key], $requests[$key]));
+
+        return $exception;
+    }
+
+
 	/**
 	 * Send multiple requests simultaneously
 	 *

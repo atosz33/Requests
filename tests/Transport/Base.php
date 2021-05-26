@@ -674,6 +674,36 @@ abstract class RequestsTest_Transport_Base extends PHPUnit_Framework_TestCase {
 		Requests::get(httpbin('/delay/10'), array(), $this->getOptions($options));
 	}
 
+	public function testPoolMultiple() {
+		$requests  = array(
+			'test1' => array(
+				'url' => httpbin('/get'),
+			),
+			'test2' => array(
+				'url' => httpbin('/get'),
+			),
+		);
+		$responses = Requests::request_pool($requests, $this->getOptions());
+
+		// test1
+		$this->assertNotEmpty($responses['test1']);
+		$this->assertInstanceOf('Requests_Response', $responses['test1']);
+		$this->assertSame(200, $responses['test1']->status_code);
+
+		$result = json_decode($responses['test1']->body, true);
+		$this->assertSame(httpbin('/get'), $result['url']);
+		$this->assertEmpty($result['args']);
+
+		// test2
+		$this->assertNotEmpty($responses['test2']);
+		$this->assertInstanceOf('Requests_Response', $responses['test2']);
+		$this->assertSame(200, $responses['test2']->status_code);
+
+		$result = json_decode($responses['test2']->body, true);
+		$this->assertSame(httpbin('/get'), $result['url']);
+		$this->assertEmpty($result['args']);
+	}
+
 	public function testMultiple() {
 		$requests  = array(
 			'test1' => array(
