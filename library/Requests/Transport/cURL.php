@@ -231,12 +231,13 @@ class Requests_Transport_cURL implements Requests_Transport {
             }
 
             list($id, $request) = array_shift($queue);
-            $subhandle = $this->addNewSubrequestHandle($id, $request);
+            list($subhandle, $subrequest) = $this->addNewSubrequestHandle($id, $request);
 
             $pool[spl_object_hash($subhandle)] = array(
                 'id' => $id,
                 'request' => $request,
                 'subhandle' => $subhandle,
+                'subrequest' => $subrequest,
             );
 
             curl_multi_add_handle($main_curl_executor_pool, $subhandle['id']);
@@ -260,16 +261,23 @@ class Requests_Transport_cURL implements Requests_Transport {
         );
         $request['options']['hooks']->dispatch('curl.before_multi_add', array(&$subhandle));
 
-        return $subhandle;
+        return array($subhandle, $subrequest);
     }
 
-    private function handleCurlResponse(array $done, $pool_element)
+    private function handleCurlResponse(array $done, $pool_element, $responses)
     {
 
         if ($done['result'] === CURLE_OK)
         {
-            $parsed_response = $pool_element->process_response($pool_element->response_data, $options);
-            options['hooks']->dispatch('transport.internal.parse_response', array(&$responses[$key], $requests[$key]));
+            $parsed_response = $pool_element->subrequest->process_response(
+                $pool_element['subhandle']->response_data,
+                $pool_element['request']['options']
+            );
+
+            $pool_element['request']['options']['hooks']->dispatch('transport.internal.parse_response', array(
+                &$parsed_response,
+                $pool_element['request']
+            ));
 
             return $parsed_response;
         }
@@ -282,7 +290,10 @@ class Requests_Transport_cURL implements Requests_Transport {
             $done['result']
         );
 
-		$options['hooks']->dispatch('transport.internal.parse_error', array(&$responses[$key], $requests[$key]));
+        $pool_element['request']['options']['hooks']->dispatch(
+		    'transport.internal.parse_error',
+            array(&$exception, $pool_element['requests'])
+        );
 
         return $exception;
     }
