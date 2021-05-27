@@ -385,7 +385,7 @@ class Requests {
 		return self::parse_response($response, $url, $headers, $data, $options);
 	}
 
-    public static function request_pool($requests, $options = array()) {
+    public static function request_pool($requests, $options = array(), $pool_size = 2) {
 		$options = array_merge(self::get_default_options(true), $options);
 
 		if (!empty($options['hooks'])) {
@@ -438,7 +438,7 @@ class Requests {
 		else {
 			$transport = self::get_transport();
 		}
-		$responses = $transport->request_pool($requests, $options);
+		$responses = $transport->request_pool($requests, $options, $pool_size);
 
 		foreach ($responses as $id => &$response) {
 			// If our hook got messed with somehow, ensure we end up with the
