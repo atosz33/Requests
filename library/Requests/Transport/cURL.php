@@ -201,24 +201,26 @@ class Requests_Transport_cURL implements Requests_Transport {
         foreach ($requests as $id => $request)
         {
             $queue[] = array(
-                'id' => $id,
-                'request' => $request
+                $id,
+                $request
             );
         }
 
         $request['options']['hooks']->dispatch('curl.before_multi_exec', array(&$multihandle));
 
-        while (!empty($pool) && !empty($queue))
+        while (!empty($pool) || !empty($queue))
         {
+            curl_multi_exec($main_curl_executor_pool, $active);
             $done = curl_multi_info_read($main_curl_executor_pool);
 
             if ($done !== false)
             {
-                $pool_key = spl_object_hash($done['handle']);
+                $pool_key = (int)$done['handle'];
                 $pool_element = $pool[$pool_key];
                 unset($pool[$pool_key]);
 
-                $response[$pool_element['id']] = $this->handleCurlResponse($done, $pool_element);
+                $response = $this->handleCurlResponse($done, $pool_element);
+                $responses[$pool_element['id']] = $response;
                 curl_multi_remove_handle($main_curl_executor_pool, $done['handle']);
                 curl_close($done['handle']);
             }
@@ -231,16 +233,16 @@ class Requests_Transport_cURL implements Requests_Transport {
             }
 
             list($id, $request) = array_shift($queue);
-            list($subhandle, $subrequest) = $this->addNewSubrequestHandle($id, $request);
+            list($subhandle, $subrequest) = $this->addNewSubrequestHandle($request);
 
-            $pool[spl_object_hash($subhandle)] = array(
+            $pool[(int)$subhandle] = array(
                 'id' => $id,
                 'request' => $request,
                 'subhandle' => $subhandle,
                 'subrequest' => $subrequest,
             );
 
-            curl_multi_add_handle($main_curl_executor_pool, $subhandle['id']);
+            curl_multi_add_handle($main_curl_executor_pool, $subhandle);
         }
 
         $request['options']['hooks']->dispatch('curl.after_multi_exec', array(&$multihandle));
@@ -249,7 +251,7 @@ class Requests_Transport_cURL implements Requests_Transport {
         return $responses;
     }
 
-    private function addNewSubrequestHandle($id, $request)
+    private function addNewSubrequestHandle($request)
     {
         $class = get_class($this);
         $subrequest = new $class();
@@ -264,13 +266,13 @@ class Requests_Transport_cURL implements Requests_Transport {
         return array($subhandle, $subrequest);
     }
 
-    private function handleCurlResponse(array $done, $pool_element, $responses)
+    private function handleCurlResponse(array $done, $pool_element)
     {
 
         if ($done['result'] === CURLE_OK)
         {
-            $parsed_response = $pool_element->subrequest->process_response(
-                $pool_element['subhandle']->response_data,
+            $parsed_response = $pool_element['subrequest']->process_response(
+                $pool_element['subrequest']->response_data,
                 $pool_element['request']['options']
             );
 
