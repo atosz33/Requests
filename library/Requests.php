@@ -438,6 +438,12 @@ class Requests {
 		else {
 			$transport = self::get_transport();
 		}
+
+        if (get_class($transport) !== 'Requests_Transport_cURL')
+        {
+            return array();
+        }
+
 		$responses = $transport->request_pool($requests, $options, $pool_size);
 
 		foreach ($responses as $id => &$response) {

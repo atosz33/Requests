@@ -52,4 +52,7 @@ class RequestsTest_Transport_fsockopen extends RequestsTest_Transport_Base {
 	public function checkContentLengthHeader($headers) {
 		$this->assertContains('Content-Length: 0', $headers);
 	}
+
+	public function testPoolMultiple(){
+    }
 }
