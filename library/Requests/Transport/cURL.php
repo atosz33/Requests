@@ -299,7 +299,7 @@ class Requests_Transport_cURL implements Requests_Transport {
 
         $pool_element['request']['options']['hooks']->dispatch(
 		    'transport.internal.parse_error',
-            array(&$exception, $pool_element['requests'])
+            array(&$exception, $pool_element['request'])
         );
 
         return $exception;
