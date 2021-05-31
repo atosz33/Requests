@@ -756,6 +756,28 @@ abstract class RequestsTest_Transport_Base extends PHPUnit_Framework_TestCase {
 		$this->assertSame('test', $result['data']);
 	}
 
+	public function testPoolWithDifferingMethods() {
+		$requests  = array(
+			'get' => array(
+				'url' => httpbin('/get'),
+			),
+			'post' => array(
+				'url'  => httpbin('/post'),
+				'type' => Requests::POST,
+				'data' => 'test',
+			),
+		);
+		$responses = Requests::request_pool($requests, $this->getOptions());
+
+		// get
+		$this->assertSame(200, $responses['get']->status_code);
+
+		// post
+		$this->assertSame(200, $responses['post']->status_code);
+		$result = json_decode($responses['post']->body, true);
+		$this->assertSame('test', $result['data']);
+	}
+
 	/**
 	 * @depends testTimeout
 	 */
@@ -797,6 +819,27 @@ abstract class RequestsTest_Transport_Base extends PHPUnit_Framework_TestCase {
 		$this->completed = array();
 	}
 
+	public function testPoolUsingCallback() {
+		$requests        = array(
+			'get' => array(
+				'url' => httpbin('/get'),
+			),
+			'post' => array(
+				'url'  => httpbin('/post'),
+				'type' => Requests::POST,
+				'data' => 'test',
+			),
+		);
+		$this->completed = array();
+		$options         = array(
+			'complete' => array($this, 'completeCallback'),
+		);
+		$responses       = Requests::request_pool($requests, $this->getOptions($options));
+
+		$this->assertSame($this->completed, $responses);
+		$this->completed = array();
+	}
+
 	public function testMultipleUsingCallbackAndFailure() {
 		$requests        = array(
 			'success' => array(
@@ -814,6 +857,28 @@ abstract class RequestsTest_Transport_Base extends PHPUnit_Framework_TestCase {
 			'complete' => array($this, 'completeCallback'),
 		);
 		$responses       = Requests::request_multiple($requests, $this->getOptions($options));
+
+		$this->assertSame($this->completed, $responses);
+		$this->completed = array();
+	}
+
+	public function testPoolUsingCallbackAndFailure() {
+		$requests        = array(
+			'success' => array(
+				'url' => httpbin('/get'),
+			),
+			'timeout' => array(
+				'url'     => httpbin('/delay/10'),
+				'options' => array(
+					'timeout' => 1,
+				),
+			),
+		);
+		$this->completed = array();
+		$options         = array(
+			'complete' => array($this, 'completeCallback'),
+		);
+		$responses       = Requests::request_pool($requests, $this->getOptions($options));
 
 		$this->assertSame($this->completed, $responses);
 		$this->completed = array();
@@ -841,6 +906,40 @@ abstract class RequestsTest_Transport_Base extends PHPUnit_Framework_TestCase {
 			),
 		);
 		Requests::request_multiple($requests, $this->getOptions());
+
+		// GET request
+		$contents = file_get_contents($requests['get']['options']['filename']);
+		$result   = json_decode($contents, true);
+		$this->assertSame(httpbin('/get'), $result['url']);
+		$this->assertEmpty($result['args']);
+		unlink($requests['get']['options']['filename']);
+
+		// POST request
+		$contents = file_get_contents($requests['post']['options']['filename']);
+		$result   = json_decode($contents, true);
+		$this->assertSame(httpbin('/post'), $result['url']);
+		$this->assertSame('test', $result['data']);
+		unlink($requests['post']['options']['filename']);
+	}
+
+	public function testPoolToFile() {
+		$requests = array(
+			'get' => array(
+				'url'     => httpbin('/get'),
+				'options' => array(
+					'filename' => tempnam(sys_get_temp_dir(), 'RLT'), // RequestsLibraryTest
+				),
+			),
+			'post' => array(
+				'url'     => httpbin('/post'),
+				'type'    => Requests::POST,
+				'data'    => 'test',
+				'options' => array(
+					'filename' => tempnam(sys_get_temp_dir(), 'RLT'), // RequestsLibraryTest
+				),
+			),
+		);
+		Requests::request_pool($requests, $this->getOptions());
 
 		// GET request
 		$contents = file_get_contents($requests['get']['options']['filename']);
