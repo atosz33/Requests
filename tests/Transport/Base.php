@@ -770,6 +770,7 @@ abstract class RequestsTest_Transport_Base extends PHPUnit_Framework_TestCase {
 		$responses = Requests::request_pool($requests, $this->getOptions());
 
 		// get
+        var_dump($requests);
         var_dump($responses);
 		$this->assertSame(200, $responses['get']->status_code);
 
