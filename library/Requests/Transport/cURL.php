@@ -221,10 +221,12 @@ class Requests_Transport_cURL implements Requests_Transport {
 
                 $response = $this->handleCurlResponse($done, $pool_element);
                 $responses[$pool_element['id']] = $response;
-                $options['hooks']->dispatch('multiple.request.complete', array(
+                curl_multi_remove_handle($main_curl_executor_pool, $done['handle']);
+
+                $pool_element['request']['options']['hooks']->dispatch('multiple.request.complete', array(
                     &$responses[$pool_element['id']], $pool_element['id'])
                 );
-                curl_multi_remove_handle($main_curl_executor_pool, $done['handle']);
+
                 curl_close($done['handle']);
             }
 
