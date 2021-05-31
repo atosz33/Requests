@@ -212,8 +212,6 @@ class Requests_Transport_cURL implements Requests_Transport {
         {
             curl_multi_exec($main_curl_executor_pool, $active);
             $done = curl_multi_info_read($main_curl_executor_pool);
-            var_dump("Count of queue" . count($queue));
-            var_dump("Count of pool" . count($pool));
 
             if ($done !== false)
             {
@@ -249,10 +247,7 @@ class Requests_Transport_cURL implements Requests_Transport {
 
             curl_multi_add_handle($main_curl_executor_pool, $subhandle);
         }
-        var_dump(count($pool));
-        var_dump(count($queue));
 
-        var_dump(count($responses));
         $request['options']['hooks']->dispatch('curl.after_multi_exec', array(&$multihandle));
         curl_multi_close($main_curl_executor_pool);
 
